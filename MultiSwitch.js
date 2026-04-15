@@ -1,13 +1,8 @@
-$(function() {
-    // Forzar que el sistema reconozca el nombre real antes de guardar la cuenta
-    var realName = $('.mainmenu[href^="/u"]').first().text() || $('#fa_welcome b').text();
-    if(realName) {
-        window.fa_username = realName;
-    }
-});
+// MultiSwitch corregido by @Ashencovenant
+// Código original propiedad de @MadeInSevilla93
 
 (function(){
-  window.SZ_MS_VER = "MS-v0.7-experimental";
+  window.SZ_MS_VER = "MS-v0.7-experimental-fixed";
 
   var STORAGE_KEY = "skinz_multiswitch_v1";
 
@@ -46,33 +41,45 @@ $(function() {
     return "";
   }
 
-  // -- get current user from toolbar
+  // -- get current user mejorado (FIX: captura nombre real)
   function getCurrentUser(){
     var img = document.querySelector('#fa_usermenu img');
     var avatar = img && img.src ? img.src : "";
+    var nickText = "";
 
-    // 1 ALT del avatar 
-    var nickAlt = img && img.getAttribute ? (img.getAttribute("alt") || "") : "";
-    nickAlt = String(nickAlt || "")
-      .replace(/\u00a0/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    if (nickAlt) {
-      return { nick: nickAlt, avatar: avatar };
+    // 1. Intentar obtener el nombre desde el texto del contenedor #fa_welcome
+    var w = document.getElementById('fa_welcome');
+    
+    if (w) {
+      // Intentamos buscar el nombre dentro de negritas (común en Foroactivo)
+      var boldName = w.querySelector('strong, b');
+      if (boldName) {
+        nickText = boldName.textContent;
+      } else {
+        // Fallback: Limpiar el texto "Bienvenido/a" y comas
+        nickText = w.textContent || "";
+        nickText = nickText.replace(/Bienvenido\/a/i, "")
+                           .replace(/,/g, "")
+                           .trim();
+      }
     }
 
-    // 2 Fallback- texto de welcome
-    var w = document.getElementById('fa_welcome');
-    if (!w) return null;
+    // 2. Si no hay texto o es "avatar", intentar con el ALT del icono de usuario
+    if (!nickText || nickText.toLowerCase() === "avatar") {
+      var nickAlt = img && img.getAttribute ? (img.getAttribute("alt") || "") : "";
+      if (nickAlt && nickAlt.toLowerCase() !== "avatar") {
+        nickText = nickAlt;
+      }
+    }
 
-    var nickText = (w.textContent || "")
+    // Limpieza final de caracteres y espacios
+    nickText = String(nickText || "")
       .replace(/\u00a0/g, " ")
-      .replace(/bienvenido\/a\s*/i, "")
       .replace(/\s+/g, " ")
       .trim();
 
-    if (!nickText) return null;
+    // Si después de todo sigue siendo "avatar" o está vacío, no es un usuario válido
+    if (!nickText || nickText.toLowerCase() === "avatar") return null;
 
     return { nick: nickText, avatar: avatar };
   }
@@ -129,11 +136,11 @@ $(function() {
       sessionStorage.removeItem("skinz_prefill_nick");
     }
   }
-  // ---- UI mount - HTML en template si existe fallback si no
+
+  // ---- UI mount
   function ensureMarkup(){
     var wrap = document.getElementById('szSw');
 
-    // Si no existe se crea
     if (!wrap){
       wrap = document.createElement('div');
       wrap.id = 'szSw';
@@ -142,12 +149,10 @@ $(function() {
       return wrap;
     }
 
-    // Si existe pero vacio, markup
     if (!wrap.firstElementChild){
       wrap.innerHTML = defaultMarkup();
     }
 
-    // Si existe, solo minimo
     if (!document.getElementById('szSwBtn')){
       var b = wrap.querySelector('button[data-role="toggle"], #szSwBtn');
       if (b && !b.id) b.id = 'szSwBtn';
@@ -164,13 +169,11 @@ $(function() {
     if (!document.getElementById('szSwPanel')){
       var p = document.createElement('div');
       p.id = 'szSwPanel';
-
       var btn = document.getElementById('szSwBtn');
       if (btn && btn.parentNode === wrap) btn.insertAdjacentElement('afterend', p);
       else wrap.appendChild(p);
       p.innerHTML = defaultPanelInner();
     } else {
-      // Si hay panel pero falta lista- se crea
       if (!document.getElementById('szSwList')){
         var body = document.getElementById('szSwBody') || document.getElementById('szSwPanel');
         var ul = document.createElement('ul');
@@ -182,7 +185,6 @@ $(function() {
     return wrap;
   }
 
-  // Markup por defecto
   function defaultPanelInner(){
     return (
       '<div id="szSwHead">' +
@@ -209,8 +211,6 @@ $(function() {
   }
 
   var wrap = ensureMarkup();
-
-  // Referencias 
   var btn = document.getElementById('szSwBtn');
   var panel = document.getElementById('szSwPanel');
   var listEl = document.getElementById('szSwList');
@@ -222,7 +222,6 @@ $(function() {
   var saveBtn = findAction('saveCurrent') || document.getElementById('szSwSave');
   var delBtn  = findAction('deleteCurrent') || document.getElementById('szSwDel');
 
-  // inicial
   if (isGuest()){
     if (saveBtn) saveBtn.style.display = "none";
     if (delBtn)  delBtn.style.display  = "none";
@@ -230,17 +229,13 @@ $(function() {
     if (delBtn)  delBtn.style.display  = "none";
   }
 
-  // render
   function render(){
     var guest = isGuest();
     var list = load();
-
-    // Toggle botones- guardar vs borrar 
     var savedNow = (!guest) && currentIsSaved(list);
     if (saveBtn) saveBtn.style.display = guest ? "none" : (savedNow ? "none" : "");
     if (delBtn)  delBtn.style.display  = guest ? "none" : (savedNow ? "" : "none");
 
-    // Activa arriba + resto ordenado por nombre
     var activeIdx = -1;
     for (var ai = 0; ai < list.length; ai++){
       if (isActiveAccount(list[ai].nick)) { activeIdx = ai; break; }
@@ -255,9 +250,7 @@ $(function() {
       return String(a.nick || "").localeCompare(String(b.nick || ""), "es", { sensitivity: "base" });
     });
 
-    if (activeAcc){
-      list.unshift(activeAcc);
-    }
+    if (activeAcc) list.unshift(activeAcc);
 
     listEl.innerHTML = "";
 
@@ -268,8 +261,8 @@ $(function() {
         '<div class="meta">' +
           '<span class="nick">Sin cuentas guardadas</span>' +
           (guest
-            ? '<span class="sub">Inicia sesión y guarda tus multicuentas.</span>'
-            : '<span class="sub">Pulsa “Guardar cuenta” para añadir la cuenta actual.</span>') +
+            ? '<span class="sub">Inicia sesión para guardar cuentas.</span>'
+            : '<span class="sub">Pulsa “Guardar cuenta” para añadir la actual.</span>') +
         '</div>';
       listEl.appendChild(li0);
       return;
@@ -278,7 +271,6 @@ $(function() {
     for (var i=0; i<list.length; i++){
       (function(acc){
         var li = document.createElement('li');
-
         var img = document.createElement('img');
         img.src = acc.avatar ? acc.avatar :
           "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect width='64' height='64' fill='%23333'/%3E%3Ctext x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-size='28' fill='%23fff'%3E%3F%3C/text%3E%3C/svg%3E";
@@ -287,15 +279,11 @@ $(function() {
         meta.className = "meta";
 
         if (isActiveAccount(acc.nick)){
-          meta.innerHTML =
-            '<span class="nick">' + esc(acc.nick) + '</span>' +
-            '<span class="sub">Activa</span>';
+          meta.innerHTML = '<span class="nick">' + esc(acc.nick) + '</span><span class="sub">Activa</span>';
           li.classList.add('szSw-active');
           li.style.cursor = "default";
         } else {
-          meta.innerHTML =
-            '<span class="nick">' + esc(acc.nick) + '</span>' +
-            '<span class="sub">Cambiar a esta cuenta</span>';
+          meta.innerHTML = '<span class="nick">' + esc(acc.nick) + '</span><span class="sub">Cambiar cuenta</span>';
         }
 
         li.appendChild(img);
@@ -306,24 +294,19 @@ $(function() {
             wrap.className = wrap.className.replace("open","").trim();
             return;
           }
-
           sessionStorage.setItem("skinz_prefill_nick", acc.nick);
-
           var out = pickLogoutUrl();
           if (out) window.location.href = out;
           else window.location.href = "/login";
         };
 
-        // click derecho como extra
         li.oncontextmenu = function(e){
           e.preventDefault();
           if (confirm("¿Eliminar esta cuenta?")){
-            var targetNick = normNick(acc.nick);
-            var targetAv = String(acc.avatar || "");
-
             var raw = load();
+            var targetNick = normNick(acc.nick);
             for (var k=0; k<raw.length; k++){
-              if (normNick(raw[k].nick) === targetNick && String(raw[k].avatar || "") === targetAv){
+              if (normNick(raw[k].nick) === targetNick){
                 raw.splice(k,1);
                 break;
               }
@@ -338,7 +321,6 @@ $(function() {
     }
   }
 
-  // ---- eventos
   btn.onclick = function(e){
     if (e && e.stopPropagation) e.stopPropagation();
     var isOpen = (wrap.className.indexOf("open") > -1);
@@ -361,20 +343,17 @@ $(function() {
     if (act === "saveCurrent"){
       var cur = getCurrentUser();
       if (!cur){
-        alert("Primero inicia sesión para poder guardar la cuenta.");
+        alert("No se pudo detectar el nombre de usuario o no has iniciado sesión.");
         return;
       }
-
       var list = load();
       var curNorm = normNick(cur.nick);
-
       for (var i=0; i<list.length; i++){
         if (normNick(list[i].nick) === curNorm){
           alert("Esa cuenta ya está guardada.");
           return;
         }
       }
-
       list.push(cur);
       save(list);
       render();
@@ -382,14 +361,9 @@ $(function() {
     }
 
     if (act === "deleteCurrent"){
-      if (isGuest()){
-        alert("No hay sesión activa que borrar.");
-        return;
-      }
+      if (isGuest()) return;
       if (!confirm("¿Borrar la cuenta actual de la lista?")) return;
-
-      var ok = deleteCurrentFromStorage();
-      if (!ok) alert("Esa cuenta no estaba guardada.");
+      deleteCurrentFromStorage();
       render();
       return;
     }
@@ -399,7 +373,6 @@ $(function() {
     wrap.className = wrap.className.replace("open","").trim();
   });
 
-  // ---- init ----
   render();
   prefillLogin();
 })();
